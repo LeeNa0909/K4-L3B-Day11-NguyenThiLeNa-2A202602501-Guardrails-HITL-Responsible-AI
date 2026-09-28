@@ -47,6 +47,11 @@ def content_filter(response: str) -> dict:
         # - National ID (CMND/CCCD): r"\b\d{9}\b|\b\d{12}\b"
         # - API key pattern: r"sk-[a-zA-Z0-9-]+"
         # - Password pattern: r"password\s*[:=]\s*\S+"
+        "phone": r"(?<!\d)(?:0\d{9,10}|\+84\s?\d{9,10})(?!\d)",
+        "email": r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}",
+        "national_id": r"(?<!\d)(?:\d{9}|\d{12})(?!\d)",
+        "api_key": r"\bsk-[a-zA-Z0-9-]+\b",
+        "password": r"\b(?:password|passwd|passcode)\b\s*(?:(?:is|:|=)\s*)?\S+",
     }
 
     for name, pattern in PII_PATTERNS.items():
@@ -180,6 +185,27 @@ class OutputGuardrailPlugin(base_plugin.BasePlugin):
         #    - If unsafe: replace llm_response.content with a safe message
         #    - Increment self.blocked_count
         # 3. Return llm_response (possibly modified)
+
+        filtered = content_filter(response_text)
+        if not filtered["safe"]:
+            llm_response.content = types.Content(
+                role="model",
+                parts=[types.Part.from_text(text=filtered["redacted"])],
+            )
+            self.redacted_count += 1
+
+        if self.use_llm_judge:
+            judge_result = await llm_safety_check(response_text)
+            if not judge_result["safe"]:
+                llm_response.content = types.Content(
+                    role="model",
+                    parts=[
+                        types.Part.from_text(
+                            text="Xin lỗi, câu trả lời không thể được gửi vì không vượt qua kiểm tra an toàn."
+                        )
+                    ],
+                )
+                self.blocked_count += 1
 
         return llm_response  # TODO: modify if needed
 
