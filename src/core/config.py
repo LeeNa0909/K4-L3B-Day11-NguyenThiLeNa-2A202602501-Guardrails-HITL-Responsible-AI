@@ -32,6 +32,7 @@ except ImportError:
 # --- Providers ---
 PROVIDER_OPENAI = "openai"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_GROQ = "groq"
 PROVIDER_OPENROUTER = "openrouter"
 
 # --- Blue Team (LOCKED) ---
@@ -43,9 +44,11 @@ DEFAULT_OPENROUTER_MODEL = BLUE_MODEL  # alias
 # --- Red Team ---
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 # Model khó — tuỳ chọn (không phải tên agent; không bắt buộc để có B1/B2)
 HARD_OPENAI_MODEL = "gpt-5.6-luna"
 HARD_GEMINI_MODEL = "gemini-3.8-flash"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 # --- Protected data (DEMO) ---
 PROTECTED_DATA_DIR = _ROOT / "data" / "protected"
@@ -139,6 +142,8 @@ def get_red_provider() -> str:
     ).strip().lower()
     if raw in {"gemini", "google", "adk"}:
         return PROVIDER_GEMINI
+    if raw == "groq":
+        return PROVIDER_GROQ
     return PROVIDER_OPENAI
 
 
@@ -148,6 +153,11 @@ def get_red_model() -> str:
         return (
             os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
             or DEFAULT_GEMINI_MODEL
+        )
+    if get_red_provider() == PROVIDER_GROQ:
+        return (
+            os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()
+            or DEFAULT_GROQ_MODEL
         )
     return (
         os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip()
@@ -169,7 +179,19 @@ def get_openai_api_key() -> str:
     return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
+def get_groq_api_key() -> str:
+    return os.environ.get("GROQ_API_KEY", "").strip()
+
+
 def red_openai_client_kwargs() -> dict:
+    if get_red_provider() == PROVIDER_GROQ:
+        return {
+            "api_key": get_groq_api_key() or None,
+            "base_url": (
+                os.environ.get("GROQ_BASE_URL", GROQ_BASE_URL).strip()
+                or GROQ_BASE_URL
+            ),
+        }
     return {"api_key": get_openai_api_key() or None}
 
 
@@ -180,7 +202,7 @@ def red_provider_label(tier: str = "advance") -> str:
 
 
 def red_uses_openai_sdk() -> bool:
-    return get_red_provider() == PROVIDER_OPENAI
+    return get_red_provider() in {PROVIDER_OPENAI, PROVIDER_GROQ}
 
 
 def red_uses_gemini() -> bool:
@@ -249,6 +271,12 @@ def setup_api_key():
             os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
         print(f"Red / Red Advance  — gemini:{model}")
+    elif red == PROVIDER_GROQ:
+        if not get_groq_api_key():
+            os.environ["GROQ_API_KEY"] = input(
+                "Enter Groq API Key (Red): "
+            ).strip()
+        print(f"Red / Red Advance  â€” groq:{model}")
     else:
         if not get_openai_api_key():
             os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
