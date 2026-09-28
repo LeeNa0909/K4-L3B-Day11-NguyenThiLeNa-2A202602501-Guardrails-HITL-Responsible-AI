@@ -144,6 +144,8 @@ def get_red_provider() -> str:
         return PROVIDER_GEMINI
     if raw == "groq":
         return PROVIDER_GROQ
+    if raw in {"openrouter", "router"}:
+        return PROVIDER_OPENROUTER
     return PROVIDER_OPENAI
 
 
@@ -158,6 +160,11 @@ def get_red_model() -> str:
         return (
             os.environ.get("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()
             or DEFAULT_GROQ_MODEL
+        )
+    if get_red_provider() == PROVIDER_OPENROUTER:
+        return (
+            os.environ.get("OPENROUTER_RED_MODEL", BLUE_MODEL).strip()
+            or BLUE_MODEL
         )
     return (
         os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip()
@@ -184,6 +191,14 @@ def get_groq_api_key() -> str:
 
 
 def red_openai_client_kwargs() -> dict:
+    if get_red_provider() == PROVIDER_OPENROUTER:
+        return {
+            "api_key": get_openrouter_api_key() or None,
+            "base_url": (
+                os.environ.get("OPENROUTER_BASE_URL", OPENROUTER_BASE_URL).strip()
+                or OPENROUTER_BASE_URL
+            ),
+        }
     if get_red_provider() == PROVIDER_GROQ:
         return {
             "api_key": get_groq_api_key() or None,
@@ -202,7 +217,11 @@ def red_provider_label(tier: str = "advance") -> str:
 
 
 def red_uses_openai_sdk() -> bool:
-    return get_red_provider() in {PROVIDER_OPENAI, PROVIDER_GROQ}
+    return get_red_provider() in {
+        PROVIDER_OPENAI,
+        PROVIDER_GROQ,
+        PROVIDER_OPENROUTER,
+    }
 
 
 def red_uses_gemini() -> bool:
@@ -277,6 +296,12 @@ def setup_api_key():
                 "Enter Groq API Key (Red): "
             ).strip()
         print(f"Red / Red Advance  â€” groq:{model}")
+    elif red == PROVIDER_OPENROUTER:
+        if not get_openrouter_api_key():
+            os.environ["OPENROUTER_API_KEY"] = input(
+                "Enter OpenRouter API Key (Blue + Red): "
+            ).strip()
+        print(f"Red / Red Advance  â€” openrouter:{model}")
     else:
         if not get_openai_api_key():
             os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
